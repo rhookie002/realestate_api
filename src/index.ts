@@ -7,22 +7,25 @@ const PORT = process.env.PORT || 3000;
 const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY || 'FUSIONGROWTHPARTNERSPRDATAPRODUCTION-f852-74e2-ad13-c9ed6cae072e';
 const REALESTATE_BASE_URL = 'https://api.realestateapi.com/v2/PropertySearch';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ApiResult = Record<string, any>;
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ── Shared fetch helper ───────────────────────────────────────────────────────
-async function searchProperties(payload: object): Promise<object> {
+async function searchProperties(payload: ApiResult): Promise<ApiResult> {
   const res = await fetch(REALESTATE_BASE_URL, {
     method: 'POST',
     headers: {
-      'accept': 'application/json',
+      accept: 'application/json',
       'content-type': 'application/json',
       'x-api-key': REALESTATE_API_KEY,
       'x-user-id': 'UniqueUserIdentifier',
     },
     body: JSON.stringify(payload),
   });
-  return res.json();
+  return res.json() as Promise<ApiResult>;
 }
 
 // ── CORS middleware ───────────────────────────────────────────────────────────
@@ -35,13 +38,11 @@ app.use((_req, res, next) => {
 app.options('*', (_req, res) => res.sendStatus(204));
 
 // ── 1. Address Search ─────────────────────────────────────────────────────────
-// POST /webhook/realestate-address
-// Body: { city, state, zip?, street?, county?, limit }
 app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   try {
     const { city, state, zip, street, county, limit = 50 } = req.body;
 
-    const payload: Record<string, unknown> = {
+    const payload: ApiResult = {
       ids_only: false,
       obfuscate: false,
       summary: false,
@@ -62,21 +63,17 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
 });
 
 // ── 2. Polygon Search ─────────────────────────────────────────────────────────
-// POST /webhook/realestate-polygon
-// Body: { polygon: [{lat, long},...], limit }
 app.post('/webhook/realestate-polygon', async (req: Request, res: Response) => {
   try {
     const { polygon, limit = 50 } = req.body;
 
-    const payload = {
+    const data = await searchProperties({
       ids_only: false,
       obfuscate: false,
       summary: false,
       polygon,
       size: limit,
-    };
-
-    const data = await searchProperties(payload);
+    });
     res.json(data);
   } catch (err) {
     console.error('[polygon-search]', err);
@@ -85,13 +82,11 @@ app.post('/webhook/realestate-polygon', async (req: Request, res: Response) => {
 });
 
 // ── 3. Radius Search ──────────────────────────────────────────────────────────
-// POST /webhook/radius-search
-// Body: { center: { lat, lng }, radiusMiles, limit }
 app.post('/webhook/radius-search', async (req: Request, res: Response) => {
   try {
     const { center, radiusMiles, limit = 50 } = req.body;
 
-    const payload = {
+    const data = await searchProperties({
       ids_only: false,
       obfuscate: false,
       summary: false,
@@ -99,9 +94,7 @@ app.post('/webhook/radius-search', async (req: Request, res: Response) => {
       longitude: String(center.lng),
       radius: radiusMiles,
       size: limit,
-    };
-
-    const data = await searchProperties(payload);
+    });
     res.json(data);
   } catch (err) {
     console.error('[radius-search]', err);
@@ -109,25 +102,20 @@ app.post('/webhook/radius-search', async (req: Request, res: Response) => {
   }
 });
 
-// ── 4. Geocode (address → lat/lng) ───────────────────────────────────────────
-// POST /webhook/geocode
-// Body: { address }
-// Returns: { lat, lng }
+// ── 4. Geocode ────────────────────────────────────────────────────────────────
 app.post('/webhook/geocode', async (req: Request, res: Response) => {
   try {
     const { address } = req.body;
 
-    const payload = {
+    const result = await searchProperties({
       ids_only: false,
       obfuscate: false,
       summary: false,
       size: 1,
       address,
-    };
+    });
 
-    const result = await searchProperties(payload) as { data?: { latitude: number; longitude: number }[] };
     const first = result.data?.[0];
-
     if (!first) {
       res.status(404).json({ error: 'Address not found' });
       return;
@@ -140,7 +128,7 @@ app.post('/webhook/geocode', async (req: Request, res: Response) => {
   }
 });
 
-// ── Catch-all: serve the frontend ─────────────────────────────────────────────
+// ── Catch-all: serve frontend ─────────────────────────────────────────────────
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
