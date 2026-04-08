@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Real Estate Map Search - Multi Property Use Filter</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f1f5f9; overflow: hidden; }
+        
+        /* Top Bar - Dark Blue */
+        .top-bar {
+            background: #0f172a;
+            padding: 10px 20px;
+            border-bottom: 1px solid #1e293b;
+            flex-shrink: 0;
+        }
+        .top-bar h3 { font-size: 1rem; font-weight: 600; color: #f1f5f9; }
+        .top-bar h3 i { color: #10b981; margin-right: 8px; }
+        
+        /* Filter Bar - Dark Blue Background */
+        .filter-bar {
+            background: #0f172a;
+            padding: 12px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 16px;
+            flex-shrink: 0;
+            border-bottom: 1px solid #1e293b;
+        }
+        
+        /* Left Side - Search Type */
+        .search-type-box {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 6px 12px;
+            min-width: 160px;
+        }
+        .search-type-box label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #94a3b8;
+            display: block;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .search-type-dropdown {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            width: 100%;
+            cursor: pointer;
+            color: #f1f5f9;
+        }
+        .search-type-dropdown option { background: #0f172a; color: #f1f5f9; }
+        
+        /* Right Side - Dynamic Fields Container - Horizontal */
+        .dynamic-fields {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 10px;
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 8px 16px;
+            min-height: 68px;
+        }
+        
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .field-group label {
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+        .field-group input, .field-group select {
+            padding: 5px 8px;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            background: #0f172a;
+            color: #f1f5f9;
+            min-width: 90px;
+        }
+        .field-group input::placeholder { color: #64748b; }
+        .field-group select option { background: #0f172a; color: #f1f5f9; }
+        
+        /* Multi-select styling */
+        .field-group select[multiple] {
+            min-width: 200px;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+        .field-group select[multiple] option {
+            padding: 3px 6px;
+        }
+        .field-group select[multiple] option:checked {
+            background: #10b981 linear-gradient(0deg, #10b981 0%, #10b981 100%);
+        }
+        
+        .checkbox-group {
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+            background: #0f172a;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid #334155;
+        }
+        .checkbox-group label { font-size: 0.7rem; color: #cbd5e1; text-transform: none; cursor: pointer; }
+        .checkbox-group input { width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: #10b981; }
+        
+        .btn-sm {
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: 0.2s;
+        }
+        .btn-primary { background: #10b981; color: white; }
+        .btn-primary:hover { background: #059669; }
+        .btn-outline { background: transparent; border: 1px solid #334155; color: #cbd5e1; }
+        .btn-outline:hover { background: #334155; color: white; }
+        .btn-clear { background: #ef4444; color: white; }
+        .btn-clear:hover { background: #dc2626; }
+        
+        .polygon-status {
+            background: #0f172a;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #cbd5e1;
+            border: 1px solid #334155;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: auto;
+        }
+        
+        .hidden { display: none !important; }
+        
+        /* Radius fields - ensure horizontal layout */
+        #radiusFields {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 10px;
+        }
+        
+        /* Main Layout */
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+        #map { flex: 3; height: 100%; background: #e2e8f0; }
+        .results-sidebar {
+            flex: 1;
+            background: white;
+            border-left: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 320px;
+        }
+        .results-header {
+            padding: 10px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+        .badge { background: #10b981; color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; }
+        .csv-btn { background: #475569; border: none; padding: 5px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 0.7rem; }
+        .csv-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .results-container { flex: 1; overflow-y: auto; padding: 12px; }
+        .property-card {
+            background: white;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-left: 3px solid #10b981;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: 0.1s;
+        }
+        .property-card:hover { transform: translateX(2px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .property-address { font-weight: 600; font-size: 0.75rem; margin-bottom: 4px; color: #1e293b; }
+        .property-detail { font-size: 0.65rem; color: #64748b; display: flex; flex-wrap: wrap; gap: 8px; }
+        .owner-info { font-size: 0.6rem; color: #3b82f6; margin-top: 4px; padding-top: 3px; border-top: 1px solid #e2e8f0; }
+        .no-results, .loading { text-align: center; padding: 40px 16px; color: #94a3b8; font-size: 0.8rem; }
+        .pagination-bar { display: flex; justify-content: center; gap: 12px; padding: 10px; border-top: 1px solid #e2e8f0; background: white; }
+        .page-btn { background: #f1f5f9; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 0.7rem; }
+        footer { font-size: 0.6rem; text-align: center; padding: 5px; background: #f8fafc; color: #94a3b8; flex-shrink: 0; }
+        .radius-circle { stroke: #f59e0b; stroke-width: 2; fill: #f59e0b; fill-opacity: 0.1; }
+        
+        @media (max-width: 1000px) {
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .dynamic-fields { flex-direction: column; align-items: stretch; }
+            #radiusFields { flex-direction: column; align-items: stretch; }
+            .action-buttons { margin-left: 0; justify-content: flex-start; margin-top: 5px; }
+            .main-layout { flex-direction: column; }
+            #map { flex: 2; min-height: 250px; }
+        }
+    </style>
+</head>
+<body>
+<div class="top-bar">
+    <h3><i class="fas fa-map-marker-alt"></i> Real Estate Search</h3>
+</div>
+
+<div class="filter-bar">
+    <!-- Left: Search Type -->
+    <div class="search-type-box">
+        <label><i class="fas fa-search"></i> Search Method</label>
+        <select id="searchTypeSelect" class="search-type-dropdown">
+            <option value="address">Address Search</option>
+            <option value="radius">Radius Search</option>
+            <option value="polygon">Polygon Search</option>
+        </select>
+    </div>
+    
+    <!-- Right: Dynamic Fields -->
+    <div id="dynamicFields" class="dynamic-fields">
+        <!-- ADDRESS FIELDS (default) -->
+        <div id="addrFields" class="field-group"><label>City</label><input type="text" id="cityInput" placeholder="San Diego" style="width:110px"></div>
+        <div id="addrStateField" class="field-group">
+            <label>State</label>
+            <select id="stateSelect" style="width:100px">
+                <option value="">Select</option>
+                <option value="AL">Alabama</option>
+                <option value="AK">Alaska</option>
+                <option value="AZ">Arizona</option>
+                <option value="AR">Arkansas</option>
+                <option value="CA">California</option>
+                <option value="CO">Colorado</option>
+                <option value="CT">Connecticut</option>
+                <option value="DE">Delaware</option>
+                <option value="FL">Florida</option>
+                <option value="GA">Georgia</option>
+                <option value="HI">Hawaii</option>
+                <option value="ID">Idaho</option>
+                <option value="IL">Illinois</option>
+                <option value="IN">Indiana</option>
+                <option value="IA">Iowa</option>
+                <option value="KS">Kansas</option>
+                <option value="KY">Kentucky</option>
+                <option value="LA">Louisiana</option>
+                <option value="ME">Maine</option>
+                <option value="MD">Maryland</option>
+                <option value="MA">Massachusetts</option>
+                <option value="MI">Michigan</option>
+                <option value="MN">Minnesota</option>
+                <option value="MS">Mississippi</option>
+                <option value="MO">Missouri</option>
+                <option value="MT">Montana</option>
+                <option value="NE">Nebraska</option>
+                <option value="NV">Nevada</option>
+                <option value="NH">New Hampshire</option>
+                <option value="NJ">New Jersey</option>
+                <option value="NM">New Mexico</option>
+                <option value="NY">New York</option>
+                <option value="NC">North Carolina</option>
+                <option value="ND">North Dakota</option>
+                <option value="OH">Ohio</option>
+                <option value="OK">Oklahoma</option>
+                <option value="OR">Oregon</option>
+                <option value="PA">Pennsylvania</option>
+                <option value="RI">Rhode Island</option>
+                <option value="SC">South Carolina</option>
+                <option value="SD">South Dakota</option>
+                <option value="TN">Tennessee</option>
+                <option value="TX">Texas</option>
+                <option value="UT">Utah</option>
+                <option value="VT">Vermont</option>
+                <option value="VA">Virginia</option>
+                <option value="WA">Washington</option>
+                <option value="WV">West Virginia</option>
+                <option value="WI">Wisconsin</option>
+                <option value="WY">Wyoming</option>
+            </select>
+        </div>
+        <div id="addrZipField" class="field-group"><label>ZIP</label><input type="text" id="zipInput" placeholder="92101" style="width:85px"></div>
+        <div id="addrStreetField" class="field-group"><label>Street</label><input type="text" id="streetInput" placeholder="Street" style="width:130px"></div>
+        <div id="addrCountyField" class="field-group"><label>County</label><input type="text" id="countyInput" placeholder="County" style="width:100px"></div>
+        
+        <!-- RADIUS FIELDS - HORIZONTAL LAYOUT -->
+        <div id="radiusFields" class="hidden">
+            <div class="field-group"><label>Street</label><input type="text" id="radiusStreet" placeholder="Street" style="width:120px"></div>
+            <div class="field-group"><label>City</label><input type="text" id="radiusCity" placeholder="City" style="width:100px"></div>
+            <div class="field-group">
+                <label>State</label>
+                <select id="radiusState" style="width:95px">
+                    <option value="">Select</option>
+                    <option value="AL">Alabama</option>
+                    <option value="AK">Alaska</option>
+                    <option value="AZ">Arizona</option>
+                    <option value="AR">Arkansas</option>
+                    <option value="CA">California</option>
+                    <option value="CO">Colorado</option>
+                    <option value="CT">Connecticut</option>
+                    <option value="DE">Delaware</option>
+                    <option value="FL">Florida</option>
+                    <option value="GA">Georgia</option>
+                    <option value="HI">Hawaii</option>
+                    <option value="ID">Idaho</option>
+                    <option value="IL">Illinois</option>
+                    <option value="IN">Indiana</option>
+                    <option value="IA">Iowa</option>
+                    <option value="KS">Kansas</option>
+                    <option value="KY">Kentucky</option>
+                    <option value="LA">Louisiana</option>
+                    <option value="ME">Maine</option>
+                    <option value="MD">Maryland</option>
+                    <option value="MA">Massachusetts</option>
+                    <option value="MI">Michigan</option>
+                    <option value="MN">Minnesota</option>
+                    <option value="MS">Mississippi</option>
+                    <option value="MO">Missouri</option>
+                    <option value="MT">Montana</option>
+                    <option value="NE">Nebraska</option>
+                    <option value="NV">Nevada</option>
+                    <option value="NH">New Hampshire</option>
+                    <option value="NJ">New Jersey</option>
+                    <option value="NM">New Mexico</option>
+                    <option value="NY">New York</option>
+                    <option value="NC">North Carolina</option>
+                    <option value="ND">North Dakota</option>
+                    <option value="OH">Ohio</option>
+                    <option value="OK">Oklahoma</option>
+                    <option value="OR">Oregon</option>
+                    <option value="PA">Pennsylvania</option>
+                    <option value="RI">Rhode Island</option>
+                    <option value="SC">South Carolina</option>
+                    <option value="SD">South Dakota</option>
+                    <option value="TN">Tennessee</option>
+                    <option value="TX">Texas</option>
+                    <option value="UT">Utah</option>
+                    <option value="VT">Vermont</option>
+                    <option value="VA">Virginia</option>
+                    <option value="WA">Washington</option>
+                    <option value="WV">West Virginia</option>
+                    <option value="WI">Wisconsin</option>
+                    <option value="WY">Wyoming</option>
+                </select>
+            </div>
+            <div class="field-group"><label>ZIP</label><input type="text" id="radiusZip" placeholder="ZIP" style="width:80px"></div>
+            <div class="field-group"><label>Radius (mi)</label><input type="number" id="radiusMiles" value="5" step="0.5" style="width:75px"></div>
+        </div>
+        
+        <!-- POLYGON FIELDS -->
+        <div id="polygonFields" class="hidden">
+            <div class="polygon-status" id="polygonStatusBadge"><i class="fas fa-draw-polygon"></i> No polygon</div>
+            <div class="field-group"><label>City Filter</label><input type="text" id="polygonCity" placeholder="Optional" style="width:100px"></div>
+            <div class="field-group"><label>State</label><select id="polygonState" style="width:90px"><option value="">Any</option><option value="CA">California</option><option value="FL">Florida</option></select></div>
+        </div>
+        
+        <!-- Common Filters (compact horizontal) -->
+        <div class="checkbox-group">
+            <input type="checkbox" id="ownerOccupiedFilter">
+            <label><i class="fas fa-user-check"></i> Owner Occ</label>
+        </div>
+        
+        <!-- Property Use Multi-Select Dropdown -->
+        <div class="field-group">
+            <label><i class="fas fa-building"></i> Property Use (Ctrl+Click)</label>
+            <select id="propertyUseFilter" multiple size="1" style="width:220px; min-width:220px">
+                <option value="Single Family Residence">🏠 Single Family Residence</option>
+                <option value="Rural Residence">🌾 Rural Residence</option>
+                <option value="Commercial (General)">🏢 Commercial (General)</option>
+                <option value="Mobile Home">🚐 Mobile Home</option>
+                <option value="Vacant Land">🌿 Vacant Land</option>
+                <option value="Agricultural/Rural (General)">🚜 Agricultural/Rural</option>
+                <option value="Miscellaneous (General)">📦 Miscellaneous</option>
+                <option value="Commercial-Vacant Land">🏭 Commercial-Vacant Land</option>
+                <option value="Private Preserve, Open Space - Vacant Land">🌲 Private Preserve</option>
+                <option value="Townhouse">🏘️ Townhouse</option>
+            </select>
+        </div>
+        
+        <div class="field-group"><label>Limit</label><input type="number" id="resultLimit" value="50" min="1" max="500" step="1" style="width:70px"></div>
+        <button id="advancedFiltersBtn" class="btn-sm btn-outline" title="Beds/Baths/SqFt"><i class="fas fa-sliders-h"></i> Filters</button>
+        
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button id="executeSearchBtn" class="btn-sm btn-primary"><i class="fas fa-search"></i> Search</button>
+            <button id="clearAllBtn" class="btn-sm btn-clear"><i class="fas fa-trash-alt"></i> Clear</button>
+        </div>
+    </div>
+</div>
+
+<div class="main-layout">
+    <div id="map"></div>
+    <div class="results-sidebar">
+        <div class="results-header">
+            <span><i class="fas fa-home"></i> Properties <span id="resultCount" class="badge">0</span></span>
+            <button id="exportCsvBtn" class="csv-btn" disabled><i class="fas fa-download"></i> CSV</button>
+        </div>
+        <div class="results-container" id="resultsContainer">
+            <div class="no-results">Select search type and click Search</div>
+        </div>
+        <div id="paginationContainer" style="display: none;"></div>
+    </div>
+</div>
+
+<script>
+    // ======================= WEBHOOK ENDPOINTS =======================
+    const GEOCODE_WEBHOOK = 'https://primary-production-c7e64.up.railway.app/webhook/geocode';
+    const PROPERTY_SEARCH_WEBHOOK = 'https://primary-production-c7e64.up.railway.app/webhook/realestate-address';
+    const RADIUS_SEARCH_WEBHOOK = 'https://primary-production-c7e64.up.railway.app/webhook/radius-search';
+    const POLYGON_SEARCH_WEBHOOK = 'https://primary-production-c7e64.up.railway.app/webhook/realestate-polygon';
+    const DEMO_MODE = false;
+    
+    // State
+    let currentPage = 0, pageSize = 12, totalResults = 0, allPropertiesCache = [], currentProperties = [];
+    let currentSearchType = 'address';
+    let currentPolygonLayer = null;
+    let currentRadiusCircle = null;
+    let advancedFilters = { minBeds: null, maxBeds: null, minBaths: null, maxBaths: null, minSqft: null, maxSqft: null };
+    
+    // Map
+    const map = L.map('map').setView([39.8283, -98.5795], 4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OSM & CartoDB' }).addTo(map);
+    
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    const drawControl = new L.Control.Draw({ edit: { featureGroup: drawnItems, remove: true }, draw: { polygon: { shapeOptions: { color: '#10b981', weight: 3, fillOpacity: 0.15 } }, rectangle: false, circle: false } });
+    map.addControl(drawControl);
+    
+    let currentMarkers = [];
+    
+    // DOM
+    const searchTypeSelect = document.getElementById('searchTypeSelect');
+    const addrFields = document.getElementById('addrFields');
+    const addrStateField = document.getElementById('addrStateField');
+    const addrZipField = document.getElementById('addrZipField');
+    const addrStreetField = document.getElementById('addrStreetField');
+    const addrCountyField = document.getElementById('addrCountyField');
+    const radiusFieldsDiv = document.getElementById('radiusFields');
+    const polygonFieldsDiv = document.getElementById('polygonFields');
+    const executeBtn = document.getElementById('executeSearchBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const exportBtn = document.getElementById('exportCsvBtn');
+    const ownerOccupiedCheck = document.getElementById('ownerOccupiedFilter');
+    const propertyUseSelect = document.getElementById('propertyUseFilter');
+    const resultLimitInput = document.getElementById('resultLimit');
+    const polygonStatusBadge = document.getElementById('polygonStatusBadge');
+    const resultsContainer = document.getElementById('resultsContainer');
+    const resultCountSpan = document.getElementById('resultCount');
+    const paginationContainer = document.getElementById('paginationContainer');
+    const radiusMilesInput = document.getElementById('radiusMiles');
+    
+    // Set default radius value
+    if (radiusMilesInput) radiusMilesInput.value = '5';
+    
+    function updateUIVisibility() {
+        const type = searchTypeSelect.value;
+        currentSearchType = type;
+        // Hide all groups
+        addrFields.classList.add('hidden');
+        addrStateField.classList.add('hidden');
+        addrZipField.classList.add('hidden');
+        addrStreetField.classList.add('hidden');
+        addrCountyField.classList.add('hidden');
+        radiusFieldsDiv.classList.add('hidden');
+        polygonFieldsDiv.classList.add('hidden');
+        
+        if (type === 'address') {
+            addrFields.classList.remove('hidden');
+            addrStateField.classList.remove('hidden');
+            addrZipField.classList.remove('hidden');
+            addrStreetField.classList.remove('hidden');
+            addrCountyField.classList.remove('hidden');
+        } else if (type === 'radius') {
+            radiusFieldsDiv.classList.remove('hidden');
+        } else if (type === 'polygon') {
+            polygonFieldsDiv.classList.remove('hidden');
+        }
+        clearResultsUI();
+    }
+    
+    function clearMarkers() { currentMarkers.forEach(m => map.removeLayer(m)); currentMarkers = []; }
+    function clearRadiusCircle() { if (currentRadiusCircle) { map.removeLayer(currentRadiusCircle); currentRadiusCircle = null; } }
+    function clearPolygon() { if (currentPolygonLayer) { drawnItems.clearLayers(); currentPolygonLayer = null; updatePolygonUI(); } }
+    function updatePolygonUI() { polygonStatusBadge.innerHTML = currentPolygonLayer ? '<i class="fas fa-check-circle" style="color:#10b981"></i> Polygon active' : '<i class="fas fa-draw-polygon"></i> No polygon'; }
+    
+    function clearResultsUI() {
+        resultsContainer.innerHTML = '<div class="no-results">No properties yet.</div>';
+        resultCountSpan.textContent = '0';
+        exportBtn.disabled = true;
+        paginationContainer.style.display = 'none';
+        clearMarkers();
+    }
+    
+    function clearAll() {
+        clearPolygon();
+        clearRadiusCircle();
+        clearResultsUI();
+        document.getElementById('cityInput').value = '';
+        document.getElementById('stateSelect').value = '';
+        document.getElementById('zipInput').value = '';
+        document.getElementById('streetInput').value = '';
+        document.getElementById('countyInput').value = '';
+        document.getElementById('radiusStreet').value = '';
+        document.getElementById('radiusCity').value = '';
+        document.getElementById('radiusState').value = '';
+        document.getElementById('radiusZip').value = '';
+        if (radiusMilesInput) radiusMilesInput.value = '5';
+        document.getElementById('polygonCity').value = '';
+        document.getElementById('polygonState').value = '';
+        ownerOccupiedCheck.checked = false;
+        // Clear multi-select
+        Array.from(propertyUseSelect.options).forEach(opt => opt.selected = false);
+        resultLimitInput.value = '50';
+        advancedFilters = { minBeds: null, maxBeds: null, minBaths: null, maxBaths: null, minSqft: null, maxSqft: null };
+        allPropertiesCache = [];
+        map.setView([39.8283, -98.5795], 4);
+    }
+    
+    function applyFilters(properties) {
+        let filtered = [...properties];
+        
+        // Owner occupied filter
+        if (ownerOccupiedCheck.checked) {
+            filtered = filtered.filter(p => p.ownerOccupied === true || p.ownerOccupied === 1);
+        }
+        
+        // Property Use filter - multiple values
+        const selectedUses = Array.from(propertyUseSelect.selectedOptions).map(opt => opt.value);
+        if (selectedUses.length > 0) {
+            filtered = filtered.filter(p => {
+                const propUse = (p.propertyUse || p.landUse || p.propertyType || '').toLowerCase();
+                return selectedUses.some(use => propUse.includes(use.toLowerCase()));
+            });
+        }
+        
+        // Bed/Bath/Sqft filters
+        if (advancedFilters.minBeds) filtered = filtered.filter(p => (p.bedrooms || 0) >= advancedFilters.minBeds);
+        if (advancedFilters.maxBeds) filtered = filtered.filter(p => (p.bedrooms || 0) <= advancedFilters.maxBeds);
+        if (advancedFilters.minBaths) filtered = filtered.filter(p => (p.bathrooms || 0) >= advancedFilters.minBaths);
+        if (advancedFilters.maxBaths) filtered = filtered.filter(p => (p.bathrooms || 0) <= advancedFilters.maxBaths);
+        if (advancedFilters.minSqft) filtered = filtered.filter(p => (p.squareFeet || 0) >= advancedFilters.minSqft);
+        if (advancedFilters.maxSqft) filtered = filtered.filter(p => (p.squareFeet || 0) <= advancedFilters.maxSqft);
+        
+        return filtered;
+    }
+    
+    async function callWebhook(url, body) {
+        if (DEMO_MODE) {
+            await new Promise(r => setTimeout(r, 500));
+            if (url.includes('geocode')) return { lat: 32.7157 + (Math.random() - 0.5) * 0.05, lng: -117.1611 + (Math.random() - 0.5) * 0.05 };
+            const mock = [];
+            const cityName = body.city || 'San Diego';
+            const useTypes = ['Single Family Residence', 'Townhouse', 'Vacant Land', 'Commercial (General)', 'Rural Residence', 'Mobile Home', 'Agricultural/Rural (General)'];
+            for (let i = 0; i < Math.min(body.limit || 50, 60); i++) {
+                mock.push({
+                    id: `prop-${i}`, propertyId: `PID${i}`, apn: `543-${100+i}`,
+                    address: { full_address: `${1000+i} ${cityName} Ave, ${cityName}, CA`, city: cityName, state: 'CA', zip: `921${i % 100}` },
+                    bedrooms: 2 + (i % 4), bathrooms: 1.5 + (i % 3), squareFeet: 1200 + (i * 70),
+                    estimatedValue: 550000 + (i * 18000), yearBuilt: 1980 + (i % 40),
+                    latitude: 32.7157 + (Math.random() - 0.5) * 0.25, longitude: -117.1611 + (Math.random() - 0.5) * 0.25,
+                    ownerOccupied: i % 3 !== 0,
+                    propertyUse: useTypes[i % useTypes.length],
+                    owner1FirstName: ['Robert','Maria','James'][i%3], owner1LastName: ['Wise','Garcia','Smith'][i%3],
+                    owner2FirstName: (i % 2 === 0) ? 'Joyce' : '', owner2LastName: (i % 2 === 0) ? 'Lee' : '',
+                    mailAddress: { street: `${5000+i} Mailing Rd`, city: 'Mailing City', state: 'CA', zip: `902${i}` }
+                });
+            }
+            return { data: mock };
+        }
+        const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return resp.json();
+    }
+    
+    async function executeSearch() {
+        const type = searchTypeSelect.value;
+        const limit = parseInt(resultLimitInput.value, 10) || 50;
+        
+        try {
+            if (type === 'address') {
+                const payload = {
+                    city: document.getElementById('cityInput').value,
+                    state: document.getElementById('stateSelect').value,
+                    zip: document.getElementById('zipInput').value,
+                    street: document.getElementById('streetInput').value,
+                    county: document.getElementById('countyInput').value,
+                    limit
+                };
+                if (!payload.city && !payload.state && !payload.zip && !payload.county) {
+                    alert('Enter at least City, State, ZIP, or County');
+                    return;
+                }
+                const response = await callWebhook(PROPERTY_SEARCH_WEBHOOK, payload);
+                let props = response.data || [];
+                props = applyFilters(props);
+                displayAllResults(props);
+            }
+            else if (type === 'radius') {
+                const street = document.getElementById('radiusStreet').value;
+                const city = document.getElementById('radiusCity').value;
+                const state = document.getElementById('radiusState').value;
+                const zip = document.getElementById('radiusZip').value;
+                const radiusMiles = parseFloat(document.getElementById('radiusMiles').value);
+                if (!radiusMiles || radiusMiles <= 0) { alert('Enter valid radius in miles'); return; }
+                const addressStr = [street, city, state, zip].filter(v=>v).join(', ');
+                if (!addressStr) { alert('Enter address for radius center'); return; }
+                
+                resultsContainer.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-pulse"></i> Geocoding address...</div>';
+                const geo = await callWebhook(GEOCODE_WEBHOOK, { address: addressStr });
+                if (!geo.lat || !geo.lng) throw new Error('Geocoding failed');
+                clearRadiusCircle();
+                currentRadiusCircle = L.circle([geo.lat, geo.lng], { radius: radiusMiles * 1609.34, color: '#f59e0b', weight: 2, fillOpacity: 0.1 }).addTo(map);
+                map.setView([geo.lat, geo.lng], 12);
+                
+                const payload = {
+                    center: { lat: geo.lat, lng: geo.lng },
+                    radiusMiles: radiusMiles,
+                    city: city,
+                    state: state,
+                    zip: zip,
+                    limit: limit
+                };
+                const response = await callWebhook(RADIUS_SEARCH_WEBHOOK, payload);
+                let props = response.data || [];
+                props = applyFilters(props);
+                displayAllResults(props);
+            }
+            else if (type === 'polygon') {
+                if (!currentPolygonLayer) { alert('Draw a polygon on the map first'); return; }
+                const latlngs = currentPolygonLayer.getLatLngs()[0];
+                let coords = latlngs.map(p => ({ lat: p.lat, lon: p.lng }));
+                if (coords.length > 1 && coords[0].lat === coords[coords.length-1].lat && coords[0].lon === coords[coords.length-1].lon) coords.pop();
+                const city = document.getElementById('polygonCity').value;
+                const state = document.getElementById('polygonState').value;
+                const payload = { polygon: coords, city, state, limit };
+                const response = await callWebhook(POLYGON_SEARCH_WEBHOOK, payload);
+                let props = response.data || [];
+                props = applyFilters(props);
+                displayAllResults(props);
+            }
+        } catch (err) {
+            resultsContainer.innerHTML = `<div class="no-results" style="color:#ef4444;">Error: ${err.message}</div>`;
+        }
+    }
+    
+    // Display ALL properties on map, paginate only sidebar
+    function displayAllResults(properties) {
+        totalResults = properties.length;
+        allPropertiesCache = properties;
+        
+        // Update map with ALL markers
+        clearMarkers();
+        const bounds = [];
+        properties.forEach(p => {
+            if (p.latitude && p.longitude) {
+                const addr = p.address?.full_address || `${p.address?.street||''} ${p.address?.city||''}`;
+                const propUse = p.propertyUse || p.landUse || p.propertyType || 'N/A';
+                const m = L.marker([p.latitude, p.longitude]).bindPopup(`<b>${addr?.substring(0,40)}</b><br>${propUse}`);
+                m.addTo(map);
+                currentMarkers.push(m);
+                bounds.push([p.latitude, p.longitude]);
+            }
+        });
+        if (bounds.length) map.fitBounds(L.latLngBounds(bounds).pad(0.2));
+        else if (currentRadiusCircle) map.fitBounds(currentRadiusCircle.getBounds());
+        else if (currentPolygonLayer) map.fitBounds(currentPolygonLayer.getBounds());
+        
+        // Paginate only the sidebar results
+        currentProperties = properties.slice(0, pageSize);
+        currentPage = 0;
+        displaySidebarResults(currentProperties);
+        const totalPages = Math.ceil(totalResults / pageSize);
+        renderPagination(0, totalPages);
+        exportBtn.disabled = false;
+        resultCountSpan.textContent = totalResults;
+    }
+    
+    function displaySidebarResults(properties) {
+        if (!properties.length) { 
+            resultsContainer.innerHTML = '<div class="no-results">No properties match criteria</div>'; 
+            return; 
+        }
+        let html = '';
+        properties.forEach((p,idx) => {
+            const addr = p.address?.full_address || `${p.address?.street||''} ${p.address?.city||''}`;
+            const price = p.estimatedValue || 'N/A';
+            const priceFmt = price !== 'N/A' ? `$${Number(price).toLocaleString()}` : 'N/A';
+            const propUse = p.propertyUse || p.landUse || p.propertyType || 'N/A';
+            html += `<div class="property-card" data-global-idx="${allPropertiesCache.findIndex(prop => prop.id === p.id)}">
+                        <div class="property-address"><i class="fas fa-location-dot"></i> ${addr?.substring(0,70) || 'N/A'}</div>
+                        <div class="property-detail">
+                            <span class="property-price">${priceFmt}</span>
+                            <span><i class="fas fa-bed"></i> ${p.bedrooms||'—'} bd</span>
+                            <span><i class="fas fa-bath"></i> ${p.bathrooms||'—'} ba</span>
+                            <span><i class="fas fa-vector-square"></i> ${p.squareFeet||'—'} sqft</span>
+                            <span><i class="fas fa-building"></i> ${propUse.substring(0,25)}</span>
+                        </div>
+                        <div class="owner-info">
+                            <i class="fas fa-user-friends"></i> ${p.owner1FirstName||''} ${p.owner1LastName||''} ${p.owner2FirstName ? `& ${p.owner2FirstName} ${p.owner2LastName||''}` : ''}<br>
+                            <i class="fas fa-envelope"></i> ${p.mailAddress?.street||''}, ${p.mailAddress?.city||''}
+                        </div>
+                    </div>`;
+        });
+        resultsContainer.innerHTML = html;
+        document.querySelectorAll('.property-card').forEach((card) => {
+            card.addEventListener('click', () => {
+                const idx = parseInt(card.dataset.globalIdx);
+                const p = allPropertiesCache[idx];
+                if (p && p.latitude && p.longitude) map.setView([p.latitude, p.longitude], 16);
+            });
+        });
+    }
+    
+    function renderPagination(page, totalPages) {
+        if (totalPages <= 1) { paginationContainer.style.display = 'none'; return; }
+        paginationContainer.style.display = 'flex';
+        paginationContainer.innerHTML = `<button class="page-btn" id="prevPage" ${page===0?'disabled':''}>Prev</button><span>${page+1} / ${totalPages} (${totalResults})</span><button class="page-btn" id="nextPage" ${page+1>=totalPages?'disabled':''}>Next</button>`;
+        document.getElementById('prevPage')?.addEventListener('click', () => { 
+            if(page>0) { 
+                const start = (page-1)*pageSize; 
+                currentProperties = allPropertiesCache.slice(start, start+pageSize); 
+                displaySidebarResults(currentProperties); 
+                renderPagination(page-1, totalPages); 
+            } 
+        });
+        document.getElementById('nextPage')?.addEventListener('click', () => { 
+            if(page+1<totalPages) { 
+                const start = (page+1)*pageSize; 
+                currentProperties = allPropertiesCache.slice(start, start+pageSize); 
+                displaySidebarResults(currentProperties); 
+                renderPagination(page+1, totalPages); 
+            } 
+        });
+    }
+    
+    function exportToCsv() {
+        if(!allPropertiesCache.length) return;
+        const rows = allPropertiesCache.map(p => ({
+            'Property ID': p.id || p.propertyId || '',
+            'APN': p.apn || '',
+            'Full Address': p.address?.full_address || `${p.address?.street || ''} ${p.address?.city || ''} ${p.address?.state || ''} ${p.address?.zip || ''}`.trim(),
+            'City': p.address?.city || '',
+            'State': p.address?.state || '',
+            'ZIP': p.address?.zip || '',
+            'Estimated Value': p.estimatedValue || '',
+            'Bedrooms': p.bedrooms || '',
+            'Bathrooms': p.bathrooms || '',
+            'SqFt': p.squareFeet || '',
+            'Year Built': p.yearBuilt || '',
+            'Owner Occupied': p.ownerOccupied ? 'Yes' : 'No',
+            'Property Use': p.propertyUse || p.landUse || p.propertyType || '',
+            'Owner 1 First Name': p.owner1FirstName || '',
+            'Owner 1 Last Name': p.owner1LastName || '',
+            'Owner 2 First Name': p.owner2FirstName || '',
+            'Owner 2 Last Name': p.owner2LastName || '',
+            'Mailing Address': p.mailAddress?.street || '',
+            'Mailing City': p.mailAddress?.city || '',
+            'Mailing State': p.mailAddress?.state || '',
+            'Mailing ZIP': p.mailAddress?.zip || '',
+            'Latitude': p.latitude || '',
+            'Longitude': p.longitude || ''
+        }));
+
+        const csv = Papa.unparse(rows); const blob = new Blob(["\uFEFF"+csv], {type:'text/csv'});
+        const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `properties_${Date.now()}.csv`; link.click(); URL.revokeObjectURL(link.href);
+    }
+    
+    function showFiltersModal() {
+        const modal = document.createElement('div'); modal.className = 'modal'; modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:2000;display:flex;justify-content:center;align-items:center;';
+        modal.innerHTML = `<div style="background:#0f172a;border-radius:16px;padding:20px;width:90%;max-width:360px;border:1px solid #334155"><h4 style="margin-bottom:16px;color:#f1f5f9">Advanced Filters</h4>
+            <div style="margin-bottom:12px"><label style="color:#94a3b8;font-size:0.7rem">Min Beds</label><input id="modalMinBeds" type="number" style="width:100%;padding:6px;margin-top:4px;border:1px solid #334155;border-radius:6px;background:#1e293b;color:white"></div>
+            <div style="margin-bottom:12px"><label style="color:#94a3b8;font-size:0.7rem">Max Beds</label><input id="modalMaxBeds" type="number" style="width:100%;padding:6px;border:1px solid #334155;border-radius:6px;background:#1e293b;color:white"></div>
+            <div style="margin-bottom:12px"><label style="color:#94a3b8;font-size:0.7rem">Min Baths</label><input id="modalMinBaths" type="number" step="0.5" style="width:100%;padding:6px;border:1px solid #334155;border-radius:6px;background:#1e293b;color:white"></div>
+            <div style="margin-bottom:12px"><label style="color:#94a3b8;font-size:0.7rem">Max Baths</label><input id="modalMaxBaths" type="number" step="0.5" style="width:100%;padding:6px;border:1px solid #334155;border-radius:6px;background:#1e293b;color:white"></div>
+            <div style="margin-bottom:12px"><label style="color:#94a3b8;font-size:0.7rem">Min SqFt</label><input id="modalMinSqft" type="number" style="width:100%;padding:6px;border:1px solid #334155;border-radius:6px;background:#1e293b;color:white"></div>
+            <div style="margin-bottom:12px"><label style="color:#94a3b8;font-size:0.7rem">Max SqFt</label><input id="modalMaxSqft" type="number" style="width:100%;padding:6px;border:1px solid #334155;border-radius:6px;background:#1e293b;color:white"></div>
+            <div style="display:flex;gap:12px;margin-top:16px"><button id="modalApply" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer">Apply</button><button id="modalClose" style="flex:1;background:#334155;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer">Cancel</button></div></div>`;
+        document.body.appendChild(modal);
+        document.getElementById('modalApply').onclick = () => {
+            advancedFilters = { minBeds: parseInt(document.getElementById('modalMinBeds').value)||null, maxBeds: parseInt(document.getElementById('modalMaxBeds').value)||null, minBaths: parseFloat(document.getElementById('modalMinBaths').value)||null, maxBaths: parseFloat(document.getElementById('modalMaxBaths').value)||null, minSqft: parseInt(document.getElementById('modalMinSqft').value)||null, maxSqft: parseInt(document.getElementById('modalMaxSqft').value)||null };
+            document.body.removeChild(modal); executeSearch();
+        };
+        document.getElementById('modalClose').onclick = () => document.body.removeChild(modal);
+    }
+    
+    // Event Listeners
+    searchTypeSelect.addEventListener('change', updateUIVisibility);
+    executeBtn.addEventListener('click', executeSearch);
+    clearAllBtn.addEventListener('click', clearAll);
+    exportBtn.addEventListener('click', exportToCsv);
+    document.getElementById('advancedFiltersBtn').addEventListener('click', showFiltersModal);
+    map.on(L.Draw.Event.CREATED, (e) => { drawnItems.clearLayers(); drawnItems.addLayer(e.layer); currentPolygonLayer = e.layer; updatePolygonUI(); clearResultsUI(); });
+    map.on(L.Draw.Event.DELETED, () => { if(drawnItems.getLayers().length===0) { currentPolygonLayer=null; updatePolygonUI(); } });
+    
+    updateUIVisibility();
+    if(DEMO_MODE) console.log('DEMO MODE: Set DEMO_MODE=false and configure webhook URLs for production');
+</script>
+</body>
+</html>
