@@ -48,10 +48,10 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
       summary: false,
       size: limit,
     };
+    if (street) payload.street = street;
     if (city)   payload.city   = city;
     if (state)  payload.state  = state;
     if (zip)    payload.zip    = zip;
-    if (street) payload.street = street;
     if (county) payload.county = county;
 
     const data = await searchProperties(payload);
