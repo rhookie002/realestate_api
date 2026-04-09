@@ -4,7 +4,7 @@ import path from 'path';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY;
+const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY as string,;
 const REALESTATE_BASE_URL = 'https://api.realestateapi.com/v2/PropertySearch';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
