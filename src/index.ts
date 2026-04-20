@@ -7,26 +7,14 @@ const PORT = process.env.PORT || 3000;
 const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY as string;
 const REALESTATE_BASE_URL = 'https://api.realestateapi.com/v2/PropertySearch';
 
+// Max records the API will return per single request
+const API_PAGE_SIZE = 250;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ApiResult = Record<string, any>;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
-
-// ── Shared fetch helper ───────────────────────────────────────────────────────
-async function searchProperties(payload: ApiResult): Promise<ApiResult> {
-  const res = await fetch(REALESTATE_BASE_URL, {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      'x-api-key': REALESTATE_API_KEY,
-      'x-user-id': 'UniqueUserIdentifier',
-    },
-    body: JSON.stringify(payload),
-  });
-  return res.json() as Promise<ApiResult>;
-}
 
 // ── CORS middleware ───────────────────────────────────────────────────────────
 app.use((_req, res, next) => {
@@ -37,24 +25,74 @@ app.use((_req, res, next) => {
 });
 app.options('*', (_req, res) => res.sendStatus(204));
 
+// ── Single page fetch ─────────────────────────────────────────────────────────
+async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: number): Promise<ApiResult> {
+  const res = await fetch(REALESTATE_BASE_URL, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'x-api-key': REALESTATE_API_KEY,
+      'x-user-id': 'UniqueUserIdentifier',
+    },
+    body: JSON.stringify({ ...payload, size: pageSize, resultIndex }),
+  });
+  return res.json() as Promise<ApiResult>;
+}
+
+// ── Paginated fetch — pulls all records up to `limit` ────────────────────────
+// The API caps each response at 250 records. This function loops through
+// pages using resultIndex until we have `limit` records or exhaust results.
+async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<ApiResult> {
+  const allRecords: ApiResult[] = [];
+  let resultIndex = 0;
+  let totalAvailable = Infinity; // will be set after first response
+  let firstResponse: ApiResult | null = null;
+
+  while (allRecords.length < limit && resultIndex < totalAvailable) {
+    const remaining = limit - allRecords.length;
+    const pageSize = Math.min(remaining, API_PAGE_SIZE);
+
+    const page = await fetchPage(basePayload, resultIndex, pageSize);
+
+    if (!firstResponse) {
+      firstResponse = page;
+      // resultCount is the total matching records in the API
+      totalAvailable = page.resultCount ?? 0;
+    }
+
+    const records: ApiResult[] = page.data ?? [];
+    if (records.length === 0) break; // no more records
+
+    allRecords.push(...records);
+    resultIndex += records.length;
+
+    // Stop if this page returned fewer than requested (last page)
+    if (records.length < pageSize) break;
+  }
+
+  // Return in the same shape as a single API response
+  return {
+    ...firstResponse,
+    data: allRecords,
+    resultCount: firstResponse?.resultCount ?? allRecords.length,
+    recordCount: allRecords.length,
+  };
+}
+
 // ── 1. Address Search ─────────────────────────────────────────────────────────
 app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   try {
     const { city, state, zip, street, county, limit = 50 } = req.body;
 
-    const payload: ApiResult = {
-      ids_only: false,
-      obfuscate: false,
-      summary: false,
-      size: limit,
-    };
+    const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false };
     if (street) payload.street = street;
     if (city)   payload.city   = city;
     if (state)  payload.state  = state;
     if (zip)    payload.zip    = zip;
     if (county) payload.county = county;
 
-    const data = await searchProperties(payload);
+    const data = await fetchAllPages(payload, limit);
     res.json(data);
   } catch (err) {
     console.error('[address-search]', err);
@@ -67,13 +105,8 @@ app.post('/webhook/realestate-polygon', async (req: Request, res: Response) => {
   try {
     const { polygon, limit = 50 } = req.body;
 
-    const data = await searchProperties({
-      ids_only: false,
-      obfuscate: false,
-      summary: false,
-      polygon,
-      size: limit,
-    });
+    const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false, polygon };
+    const data = await fetchAllPages(payload, limit);
     res.json(data);
   } catch (err) {
     console.error('[polygon-search]', err);
@@ -86,15 +119,15 @@ app.post('/webhook/radius-search', async (req: Request, res: Response) => {
   try {
     const { center, radiusMiles, limit = 50 } = req.body;
 
-    const data = await searchProperties({
+    const payload: ApiResult = {
       ids_only: false,
       obfuscate: false,
       summary: false,
       latitude: String(center.lat),
       longitude: String(center.lng),
       radius: radiusMiles,
-      size: limit,
-    });
+    };
+    const data = await fetchAllPages(payload, limit);
     res.json(data);
   } catch (err) {
     console.error('[radius-search]', err);
@@ -102,20 +135,14 @@ app.post('/webhook/radius-search', async (req: Request, res: Response) => {
   }
 });
 
-// ── 4. Geocode ────────────────────────────────────────────────────────────────
+// ── 4. Geocode (address → lat/lng) ───────────────────────────────────────────
 app.post('/webhook/geocode', async (req: Request, res: Response) => {
   try {
     const { address } = req.body;
 
-    const result = await searchProperties({
-      ids_only: false,
-      obfuscate: false,
-      summary: false,
-      size: 1,
-      address,
-    });
-
+    const result = await fetchPage({ ids_only: false, obfuscate: false, summary: false, address }, 0, 1);
     const first = result.data?.[0];
+
     if (!first) {
       res.status(404).json({ error: 'Address not found' });
       return;
