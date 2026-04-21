@@ -788,7 +788,9 @@
             'Mailing State': p.mailAddress?.state || '',
             'Mailing ZIP': p.mailAddress?.zip || '',
             'Latitude': p.latitude || '',
-            'Longitude': p.longitude || ''
+            'Longitude': p.longitude || '',
+            'Prior Sale Amount': p.priorSaleAmount || '',
+            'Last Sale Amount': p.lastSaleAmount || '',
         }));
 
         const csv = Papa.unparse(rows); const blob = new Blob(["\uFEFF"+csv], {type:'text/csv'});
