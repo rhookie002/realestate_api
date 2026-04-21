@@ -83,14 +83,25 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
 // ── 1. Address Search ─────────────────────────────────────────────────────────
 app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   try {
-    const { city, state, zip, street, county, limit = 50 } = req.body;
+    const { city, state, zip, street, county, limit = 50,
+      beds_min, beds_max, baths_min, baths_max,
+      building_size_min, building_size_max,
+      last_sale_price_min, last_sale_price_max } = req.body;
 
     const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false };
-    if (street) payload.street = street;
-    if (city)   payload.city   = city;
-    if (state)  payload.state  = state;
-    if (zip)    payload.zip    = zip;
-    if (county) payload.county = county;
+    if (street)              payload.street               = street;
+    if (city)                payload.city                 = city;
+    if (state)               payload.state                = state;
+    if (zip)                 payload.zip                  = zip;
+    if (county)              payload.county               = county;
+    if (beds_min)            payload.beds_min             = beds_min;
+    if (beds_max)            payload.beds_max             = beds_max;
+    if (baths_min)           payload.baths_min            = baths_min;
+    if (baths_max)           payload.baths_max            = baths_max;
+    if (building_size_min)   payload.building_size_min    = building_size_min;
+    if (building_size_max)   payload.building_size_max    = building_size_max;
+    if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
+    if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
 
     const data = await fetchAllPages(payload, limit);
     res.json(data);
@@ -103,9 +114,20 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
 // ── 2. Polygon Search ─────────────────────────────────────────────────────────
 app.post('/webhook/realestate-polygon', async (req: Request, res: Response) => {
   try {
-    const { polygon, limit = 50 } = req.body;
+    const { polygon, limit = 50,
+      beds_min, beds_max, baths_min, baths_max,
+      building_size_min, building_size_max,
+      last_sale_price_min, last_sale_price_max } = req.body;
 
     const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false, polygon };
+    if (beds_min)            payload.beds_min             = beds_min;
+    if (beds_max)            payload.beds_max             = beds_max;
+    if (baths_min)           payload.baths_min            = baths_min;
+    if (baths_max)           payload.baths_max            = baths_max;
+    if (building_size_min)   payload.building_size_min    = building_size_min;
+    if (building_size_max)   payload.building_size_max    = building_size_max;
+    if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
+    if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
     const data = await fetchAllPages(payload, limit);
     res.json(data);
   } catch (err) {
@@ -117,7 +139,10 @@ app.post('/webhook/realestate-polygon', async (req: Request, res: Response) => {
 // ── 3. Radius Search ──────────────────────────────────────────────────────────
 app.post('/webhook/radius-search', async (req: Request, res: Response) => {
   try {
-    const { center, radiusMiles, limit = 50 } = req.body;
+    const { center, radiusMiles, limit = 50,
+      beds_min, beds_max, baths_min, baths_max,
+      building_size_min, building_size_max,
+      last_sale_price_min, last_sale_price_max } = req.body;
 
     const payload: ApiResult = {
       ids_only: false,
@@ -127,6 +152,14 @@ app.post('/webhook/radius-search', async (req: Request, res: Response) => {
       longitude: String(center.lng),
       radius: radiusMiles,
     };
+    if (beds_min)            payload.beds_min             = beds_min;
+    if (beds_max)            payload.beds_max             = beds_max;
+    if (baths_min)           payload.baths_min            = baths_min;
+    if (baths_max)           payload.baths_max            = baths_max;
+    if (building_size_min)   payload.building_size_min    = building_size_min;
+    if (building_size_max)   payload.building_size_max    = building_size_max;
+    if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
+    if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
     const data = await fetchAllPages(payload, limit);
     res.json(data);
   } catch (err) {
