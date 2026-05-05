@@ -25,10 +25,10 @@ app.use((_req, res, next) => {
   next();
 });
 app.options('*', (_req, res) => res.sendStatus(204));
-app.get("/config.js", (req, res) => {
+app.get("/config.js", (_req, res) => {
   res.type("application/javascript");
   res.send(`
-    window.GOOGLE_MAPS_API_KEY = apiKey ;
+    window.GOOGLE_MAPS_API_KEY = "${apiKey}";
   `);
 });
 // ── Single page fetch ─────────────────────────────────────────────────────────
