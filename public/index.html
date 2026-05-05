@@ -11,9 +11,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="/config.js"></script>
-    <script
-      src="https://maps.googleapis.com/maps/api/js?key=" + window.GOOGLE_MAPS_API_KEY + "&libraries=places"
-      defer>
+    <script>
+      function initAutocomplete() {
+        const input = document.getElementById('autocomplete');
+        if (!input) return;
+        new google.maps.places.Autocomplete(input);
+      }
+    
+      // Dynamically create the Maps script
+      const mapsScript = document.createElement('script');
+      mapsScript.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY}&libraries=places&callback=initAutocomplete`;
+      mapsScript.async = true;
+      mapsScript.defer = true;
+      document.head.appendChild(mapsScript);
     </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1055,7 +1065,7 @@
     //     initAutocomplete();
     // }
 
-window.addEventListener("load", loadGoogleMapsWhenReady);
+    // window.addEventListener("load", loadGoogleMapsWhenReady);
     // Event Listeners
     searchTypeSelect.addEventListener('change', updateUIVisibility);
     executeBtn.addEventListener('click', executeSearch);
