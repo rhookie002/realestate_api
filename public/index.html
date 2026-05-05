@@ -224,26 +224,39 @@
             .main-layout { flex-direction: column; }
             #map { flex: 2; min-height: 250px; }
         }
-        /* Ensure dropdown shows above everything */
+        /* 🔥 Force Google dropdown above everything */
         .pac-container {
-            z-index: 9999 !important;
+            z-index: 99999 !important;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            margin-top: 4px;
+            font-family: inherit;
         }
         
-        /* Match your dark UI */
+        /* Each result item */
         .pac-item {
-            background: #0f172a;
-            color: #f1f5f9;
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            color: #e2e8f0;
+            cursor: pointer;
             border-top: 1px solid #1e293b;
         }
         
+        /* Hover state */
         .pac-item:hover {
             background: #1e293b;
         }
         
-        /* Highlighted text */
+        /* Highlighted match text */
         .pac-item-query {
             color: #10b981;
             font-weight: 600;
+        }
+        
+        /* Optional: remove Google icon spacing */
+        .pac-icon {
+            display: none;
         }
     </style>
 </head>
