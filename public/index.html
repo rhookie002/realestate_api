@@ -224,6 +224,27 @@
             .main-layout { flex-direction: column; }
             #map { flex: 2; min-height: 250px; }
         }
+        /* Ensure dropdown shows above everything */
+        .pac-container {
+            z-index: 9999 !important;
+        }
+        
+        /* Match your dark UI */
+        .pac-item {
+            background: #0f172a;
+            color: #f1f5f9;
+            border-top: 1px solid #1e293b;
+        }
+        
+        .pac-item:hover {
+            background: #1e293b;
+        }
+        
+        /* Highlighted text */
+        .pac-item-query {
+            color: #10b981;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
