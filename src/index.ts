@@ -25,7 +25,12 @@ app.use((_req, res, next) => {
   next();
 });
 app.options('*', (_req, res) => res.sendStatus(204));
-
+app.get("/config.js", (req, res) => {
+  res.type("application/javascript");
+  res.send(`
+    window.GOOGLE_MAPS_API_KEY = apiKey ;
+  `);
+});
 // ── Single page fetch ─────────────────────────────────────────────────────────
 async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: number): Promise<ApiResult> {
   const res = await fetch(REALESTATE_BASE_URL, {
