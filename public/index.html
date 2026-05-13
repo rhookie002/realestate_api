@@ -784,12 +784,11 @@
                             <span><i class="fas fa-bath"></i> ${p.bathrooms||'—'} ba</span>
                             <span><i class="fas fa-vector-square"></i> ${p.squareFeet ? fmt(p.squareFeet) : '—'} sqft</span>
                             <span><i class="fas fa-building"></i> ${propUse.substring(0,25)}</span>
-                            <span><i class="fas fa-building"></i> ${p.ownerOccupied ||'—'}}</span>
                         </div>
                         <div class="owner-info">
                             <i class="fas fa-user-friends"></i> ${p.owner1FirstName||''} ${p.owner1LastName||''} ${p.owner2FirstName ? `& ${p.owner2FirstName} ${p.owner2LastName||''}` : ''}<br>
-                            <i class="fas fa-envelope"></i> ${p.mailAddress?.street||''}, ${p.mailAddress?.city||''}
-                            
+                            <i class="fas fa-envelope"></i> ${p.mailAddress?.street||''}, ${p.mailAddress?.city||''}<br>
+                            <i class="fas fa-house-user"></i> ${p.ownerOccupied ||'—'}}<br> 
                         </div>
                     </div>`;
         });
