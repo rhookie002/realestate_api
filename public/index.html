@@ -788,7 +788,7 @@
                         <div class="owner-info">
                             <i class="fas fa-user-friends"></i> ${p.owner1FirstName||''} ${p.owner1LastName||''} ${p.owner2FirstName ? `& ${p.owner2FirstName} ${p.owner2LastName||''}` : ''}<br>
                             <i class="fas fa-envelope"></i> ${p.mailAddress?.street||''}, ${p.mailAddress?.city||''}<br>
-                            <i class="fas fa-house-user"></i> ${p.ownerOccupied ||'—'}}<br> 
+                            <i class="fas fa-house-user"></i> ${p.ownerOccupied && p.ownerOccupied !== 'false' ? 'Yes' : 'No'}<br> 
                         </div>
                     </div>`;
         });
