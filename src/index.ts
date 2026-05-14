@@ -119,8 +119,13 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
 app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   try {
     const {
-      polygon,
+      city,
+      state,
+      zip,
+      street,
+      county,
       limit = 50,
+
       beds_min,
       beds_max,
       baths_min,
@@ -131,71 +136,112 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
       last_sale_price_max
     } = req.body;
 
-    // -----------------------------------
-    // STEP 1: PropertySearch
-    // -----------------------------------
-
+    // ---------------------------------------
+    // STEP 1: Build PropertySearch payload
+    // ---------------------------------------
     const searchPayload: any = {
-      polygon,
-      ids_only: true, // IMPORTANT
+      ids_only: false,
       obfuscate: false,
       summary: false
     };
 
-    if (beds_min)            searchPayload.beds_min = beds_min;
-    if (beds_max)            searchPayload.beds_max = beds_max;
-    if (baths_min)           searchPayload.baths_min = baths_min;
-    if (baths_max)           searchPayload.baths_max = baths_max;
-    if (building_size_min)   searchPayload.building_size_min = building_size_min;
-    if (building_size_max)   searchPayload.building_size_max = building_size_max;
+    if (street) searchPayload.street = street;
+    if (city) searchPayload.city = city;
+    if (state) searchPayload.state = state;
+    if (zip) searchPayload.zip = zip;
+    if (county) searchPayload.county = county;
+
+    if (beds_min) searchPayload.beds_min = beds_min;
+    if (beds_max) searchPayload.beds_max = beds_max;
+    if (baths_min) searchPayload.baths_min = baths_min;
+    if (baths_max) searchPayload.baths_max = baths_max;
+    if (building_size_min) searchPayload.building_size_min = building_size_min;
+    if (building_size_max) searchPayload.building_size_max = building_size_max;
     if (last_sale_price_min) searchPayload.last_sale_price_min = last_sale_price_min;
     if (last_sale_price_max) searchPayload.last_sale_price_max = last_sale_price_max;
 
-    const searchResults = await fetchAllPages(searchPayload, limit);
-
-    // -----------------------------------
-    // STEP 2: Extract Property IDs
-    // -----------------------------------
-
-    const propertyIds = searchResults
-      .map((p: any) => p.id || p.propertyId)
-      .filter(Boolean);
-
-    if (!propertyIds.length) {
-      return res.json([]);
-    }
-
-    // -----------------------------------
-    // STEP 3: PropertyDetailBulk
-    // -----------------------------------
-
-    const detailResponse = await axios.post(
-      'https://api.realestateapi.com/v2/PropertyDetailBulk',
+    // ---------------------------------------
+    // STEP 2: PropertySearch (fetch)
+    // ---------------------------------------
+    const searchResponse = await fetch(
+      'https://api.realestateapi.com/v2/PropertySearch',
       {
-        properties: propertyIds.map((id: string) => ({
-          id
-        }))
-      },
-      {
+        method: 'POST',
         headers: {
-          'x-api-key': process.env.REALESTATE_API_KEY,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.REALESTATE_API_KEY as string
+        },
+        body: JSON.stringify(searchPayload)
       }
     );
 
-    // -----------------------------------
-    // STEP 4: Return Full Property Records
-    // -----------------------------------
+    const searchData = await searchResponse.json();
 
-    return res.json(detailResponse.data);
+    const searchResults = searchData?.data || searchData || [];
 
-  } catch (err: any) {
-    console.error('[polygon-search]', err?.response?.data || err);
+    // ---------------------------------------
+    // STEP 3: PropertyDetail (exact match)
+    // ---------------------------------------
+    let exactProperty = null;
 
-    return res.status(500).json({
-      error: 'Polygon search failed'
-    });
+    if (street && city && state) {
+      try {
+        const detailResponse = await fetch(
+          'https://api.realestateapi.com/v2/PropertyDetail',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': process.env.REALESTATE_API_KEY as string
+            },
+            body: JSON.stringify({
+              street,
+              city,
+              state,
+              zip
+            })
+          }
+        );
+
+        const detailData = await detailResponse.json();
+        exactProperty = detailData?.data || detailData || null;
+
+      } catch (err) {
+        console.warn('[property-detail-failed]', err);
+      }
+    }
+
+    // ---------------------------------------
+    // STEP 4: Deduplicate + prepend
+    // ---------------------------------------
+    let finalResults = searchResults;
+
+    if (exactProperty) {
+      finalResults = searchResults.filter((item: any) => {
+        const sameId =
+          item?.id &&
+          exactProperty?.id &&
+          item.id === exactProperty.id;
+
+        const sameAddress =
+          item?.address &&
+          exactProperty?.address &&
+          item.address.toLowerCase() === exactProperty.address.toLowerCase();
+
+        return !sameId && !sameAddress;
+      });
+
+      finalResults.unshift(exactProperty);
+    }
+
+    // ---------------------------------------
+    // STEP 5: Return
+    // ---------------------------------------
+    return res.json(finalResults);
+
+  } catch (err) {
+    console.error('[address-search]', err);
+    return res.status(500).json({ error: 'Address search failed' });
   }
 });
 // ── 2. Polygon Search ─────────────────────────────────────────────────────────
