@@ -175,14 +175,13 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
       }
     );
 
-    const searchData = await searchResponse.json();
-
-    const searchResults = searchData?.data || searchData || [];
+    const searchData: any = await searchResponse.json();
+    const searchResults: any[] = searchData?.data || searchData || [];
 
     // ---------------------------------------
     // STEP 3: PropertyDetail (exact match)
     // ---------------------------------------
-    let exactProperty = null;
+    let exactProperty: any = null;
 
     if (street && city && state) {
       try {
@@ -203,7 +202,7 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
           }
         );
 
-        const detailData = await detailResponse.json();
+        const detailData: any = await detailResponse.json();
         exactProperty = detailData?.data || detailData || null;
 
       } catch (err) {
@@ -212,9 +211,9 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     }
 
     // ---------------------------------------
-    // STEP 4: Deduplicate + prepend
+    // STEP 4: Deduplicate + prepend exact property
     // ---------------------------------------
-    let finalResults = searchResults;
+    let finalResults: any[] = searchResults;
 
     if (exactProperty) {
       finalResults = searchResults.filter((item: any) => {
@@ -226,7 +225,8 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
         const sameAddress =
           item?.address &&
           exactProperty?.address &&
-          item.address.toLowerCase() === exactProperty.address.toLowerCase();
+          item.address.toLowerCase() ===
+            exactProperty.address.toLowerCase();
 
         return !sameId && !sameAddress;
       });
@@ -235,13 +235,15 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     }
 
     // ---------------------------------------
-    // STEP 5: Return
+    // STEP 5: Return response
     // ---------------------------------------
     return res.json(finalResults);
 
   } catch (err) {
     console.error('[address-search]', err);
-    return res.status(500).json({ error: 'Address search failed' });
+    return res.status(500).json({
+      error: 'Address search failed'
+    });
   }
 });
 // ── 2. Polygon Search ─────────────────────────────────────────────────────────
