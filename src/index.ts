@@ -179,14 +179,15 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     const searchResults: any[] = searchData?.data || searchData || [];
 
     // ---------------------------------------
-    // STEP 3: PropertyDetail (exact match)
+    // STEP 3: Resolve EXACT property via ID (FIXED FLOW)
     // ---------------------------------------
     let exactProperty: any = null;
 
     if (street && city && state) {
       try {
-        const detailResponse = await fetch(
-          'https://api.realestateapi.com/v2/PropertyDetail',
+        // Step 3a: find candidate via search (this is required)
+        const resolveResponse = await fetch(
+          'https://api.realestateapi.com/v2/PropertySearch',
           {
             method: 'POST',
             headers: {
@@ -197,16 +198,37 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
               street,
               city,
               state,
-              zip
+              zip,
+              ids_only: true,
+              limit: 1
             })
           }
         );
 
-        const detailData: any = await detailResponse.json();
-        exactProperty = detailData?.data || detailData || null;
+        const resolveData: any = await resolveResponse.json();
+        const firstMatch = resolveData?.data?.[0] || resolveData?.[0];
 
+        // Step 3b: use ID for PropertyDetail (CORRECT)
+        if (firstMatch?.id) {
+          const detailResponse = await fetch(
+            'https://api.realestateapi.com/v2/PropertyDetail',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.REALESTATE_API_KEY as string
+              },
+              body: JSON.stringify({
+                id: firstMatch.id
+              })
+            }
+          );
+
+          const detailData: any = await detailResponse.json();
+          exactProperty = detailData?.data || detailData || null;
+        }
       } catch (err) {
-        console.warn('[property-detail-failed]', err);
+        console.warn('[property-detail-resolution-failed]', err);
       }
     }
 
