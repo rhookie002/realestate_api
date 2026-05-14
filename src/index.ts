@@ -116,7 +116,7 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
 //     res.status(500).json({ error: 'Address search failed' });
 //   }
 // });
-app.post('/webhook/realestate-polygon', async (req: Request, res: Response) => {
+app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   try {
     const {
       polygon,
