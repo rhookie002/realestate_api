@@ -49,6 +49,7 @@ async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: numb
     },
     body: JSON.stringify({ ...payload, size: pageSize, resultIndex }),
   });
+
   return res.json() as Promise<ApiResult>;
 }
 
@@ -64,6 +65,7 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
     const pageSize = Math.min(remaining, API_PAGE_SIZE);
 
     const page = await fetchPage(basePayload, resultIndex, pageSize);
+    const records: ApiResult[] = page.data ?? [];
 
     if (!firstResponse) {
       firstResponse = page;
