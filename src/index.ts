@@ -99,7 +99,6 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     if (city)                payload.city                 = city;
     if (state)               payload.state                = state;
     if (zip)                 payload.zip                  = zip;
-    if (county)              payload.county               = county;
     if (beds_min)            payload.beds_min             = beds_min;
     if (beds_max)            payload.beds_max             = beds_max;
     if (baths_min)           payload.baths_min            = baths_min;
