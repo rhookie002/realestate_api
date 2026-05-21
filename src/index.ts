@@ -1,28 +1,21 @@
-import express, { Request, Response } from 'express';
-import path from 'path';
+const express = require('express');
+const path = require('path');
+const fetch = require('node-fetch'); // if using Node < 18
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY as string;
+const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY;
 const REALESTATE_BASE_URL = 'https://api.realestateapi.com/v2/PropertySearch';
-const apiKey = process.env.GOOGLE_MAPS_API_KEY as string;
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
-// Max records the API will return per single request
+// Max records per request
 const API_PAGE_SIZE = 250;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface ApiResult {
-  data?: Record<string, any>[];      // The list of property records
-  resultCount?: number;              // Total results reported by API
-  recordCount?: number;              // Count of items in `data`
-  [key: string]: any;                // Anything else the API might return
-}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// ── CORS middleware ───────────────────────────────────────────────────────────
+// ── CORS ───────────────────────────────────────────────
 app.use((_req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -32,13 +25,11 @@ app.use((_req, res, next) => {
 app.options('*', (_req, res) => res.sendStatus(204));
 app.get("/config.js", (_req, res) => {
   res.type("application/javascript");
-  res.send(`
-    window.GOOGLE_MAPS_API_KEY = "${apiKey}";
-  `);
+  res.send(`window.GOOGLE_MAPS_API_KEY = "${GOOGLE_MAPS_API_KEY}";`);
 });
 
-// ── Single page fetch ─────────────────────────────────────────────────────────
-async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: number): Promise<ApiResult> {
+// ── Fetch a single page ───────────────────────────────
+async function fetchPage(payload, resultIndex, pageSize) {
   const res = await fetch(REALESTATE_BASE_URL, {
     method: 'POST',
     headers: {
@@ -50,28 +41,26 @@ async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: numb
     body: JSON.stringify({ ...payload, size: pageSize, resultIndex }),
   });
 
-  const json: ApiResult = await res.json();
-  return json;
+  return res.json();
 }
 
-// ── Paginated fetch — pulls all records up to `limit` ────────────────────────
-async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<ApiResult> {
-  const allRecords: ApiResult[] = [];
+// ── Fetch all pages up to `limit` ───────────────────
+async function fetchAllPages(basePayload, limit) {
+  const allRecords = [];
   let resultIndex = 0;
   let totalAvailable = Infinity;
-  // Initialize with empty structure
-  let firstResponse: ApiResult = { data: [], resultCount: 0, recordCount: 0 };
+  let firstResponse = null;
 
   while (allRecords.length < limit && resultIndex < totalAvailable) {
     const remaining = limit - allRecords.length;
     const pageSize = Math.min(remaining, API_PAGE_SIZE);
 
     const page = await fetchPage(basePayload, resultIndex, pageSize);
-    const records: ApiResult[] = page.data ?? [];
+    const records = page.data || [];
 
-    if (!firstResponse.data?.length) {
+    if (!firstResponse) {
       firstResponse = page;
-      totalAvailable = page.resultCount ?? 0;
+      totalAvailable = page.resultCount || 0;
     }
 
     if (records.length === 0) break;
@@ -85,15 +74,15 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
   return {
     ...firstResponse,
     data: allRecords,
-    resultCount: firstResponse.resultCount ?? allRecords.length,
+    resultCount: firstResponse?.resultCount || allRecords.length,
     recordCount: allRecords.length,
   };
 }
 
-// ── Fetch Property Detail ─────────────────────────────────────────────────────
-async function fetchPropertyDetail(street: string, city?: string, state?: string, zip?: string): Promise<ApiResult | null> {
+// ── Fetch Property Detail ─────────────────────────────
+async function fetchPropertyDetail(street, city, state, zip) {
   try {
-    const addressStr = [street, city, state, zip].filter(v => v).join(', ');
+    const addressStr = [street, city, state, zip].filter(Boolean).join(', ');
 
     const res = await fetch('https://api.realestateapi.com/v2/PropertyDetail', {
       method: 'POST',
@@ -103,68 +92,28 @@ async function fetchPropertyDetail(street: string, city?: string, state?: string
         'x-api-key': REALESTATE_API_KEY,
         'x-user-id': 'UniqueUserIdentifier',
       },
-      body: JSON.stringify({
-        address: addressStr,
-        ids_only: false,
-        obfuscate: false,
-        summary: false
-      }),
+      body: JSON.stringify({ address: addressStr, ids_only: false, obfuscate: false, summary: false }),
     });
 
-    const response: ApiResult = await res.json();
+    const response = await res.json();
     const detail = response?.data;
 
     if (!detail) return null;
 
-    // Map PropertyDetail format to match PropertySearch format
     return {
       id: detail.id,
       propertyId: String(detail.id),
-      apn: detail.lotInfo?.apn || detail.lotInfo?.apnUnformatted,
-      address: {
-        address: detail.propertyInfo?.address?.label || detail.propertyInfo?.address?.address,
-        city: detail.propertyInfo?.address?.city,
-        state: detail.propertyInfo?.address?.state,
-        zip: detail.propertyInfo?.address?.zip,
-        county: detail.propertyInfo?.address?.county,
-        street: detail.propertyInfo?.address?.address,
-        fips: detail.propertyInfo?.address?.fips,
-      },
+      address: detail.propertyInfo?.address,
       latitude: detail.propertyInfo?.latitude,
       longitude: detail.propertyInfo?.longitude,
       bedrooms: detail.propertyInfo?.bedrooms,
       bathrooms: detail.propertyInfo?.bathrooms,
       squareFeet: detail.propertyInfo?.livingSquareFeet || detail.propertyInfo?.buildingSquareFeet,
-      lotSquareFeet: detail.propertyInfo?.lotSquareFeet || detail.lotInfo?.lotSquareFeet,
+      lotSquareFeet: detail.propertyInfo?.lotSquareFeet,
       yearBuilt: detail.propertyInfo?.yearBuilt,
       estimatedValue: detail.estimatedValue,
       propertyType: detail.propertyType,
-      propertyUse: detail.lotInfo?.propertyUse || detail.propertyInfo?.propertyUse,
-      landUse: detail.lotInfo?.landUse,
       ownerOccupied: detail.ownerOccupied,
-      owner1FirstName: detail.ownerInfo?.owner1FirstName,
-      owner1LastName: detail.ownerInfo?.owner1LastName,
-      owner2FirstName: detail.ownerInfo?.owner2FirstName,
-      owner2LastName: detail.ownerInfo?.owner2LastName,
-      mailAddress: detail.ownerInfo?.mailAddress ? {
-        address: detail.ownerInfo.mailAddress.label || detail.ownerInfo.mailAddress.address,
-        city: detail.ownerInfo.mailAddress.city,
-        state: detail.ownerInfo.mailAddress.state,
-        zip: detail.ownerInfo.mailAddress.zip,
-        street: detail.ownerInfo.mailAddress.address,
-        county: detail.ownerInfo.mailAddress.county,
-      } : null,
-      lastSaleAmount: detail.lastSale?.saleAmount,
-      lastSaleDate: detail.lastSale?.saleDate,
-      priorSaleAmount: detail.saleHistory?.[1]?.saleAmount,
-      priorSaleDate: detail.saleHistory?.[1]?.saleDate,
-      equity: detail.equity,
-      estimatedEquity: detail.estimatedEquity,
-      estimatedMortgageBalance: detail.estimatedMortgageBalance,
-      estimatedMortgagePayment: detail.estimatedMortgagePayment,
-      taxAmount: detail.taxInfo?.taxAmount,
-      assessedValue: detail.taxInfo?.assessedValue,
-      marketValue: detail.taxInfo?.marketValue,
       lastUpdateDate: detail.lastUpdateDate,
       _source: 'propertyDetail',
     };
@@ -174,61 +123,37 @@ async function fetchPropertyDetail(street: string, city?: string, state?: string
   }
 }
 
-// ── 1. Address Search ─────────────────────────────────────────────────────────
-app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
+// ── Address Search ────────────────────────────────────
+app.post('/webhook/realestate-address', async (req, res) => {
   try {
-    const { city, state, zip, street, county, limit = 50,
-      beds_min, beds_max, baths_min, baths_max,
-      building_size_min, building_size_max,
-      last_sale_price_min, last_sale_price_max } = req.body;
+    const { city, state, zip, street, county, limit = 50, beds_min, beds_max, baths_min, baths_max } = req.body;
 
-    const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false };
-    if (street)              payload.street               = street;
-    if (city)                payload.city                 = city;
-    if (state)               payload.state                = state;
-    if (zip)                 payload.zip                  = zip;
-    if (county)              payload.county               = county;
-    if (beds_min)            payload.beds_min             = beds_min;
-    if (beds_max)            payload.beds_max             = beds_max;
-    if (baths_min)           payload.baths_min            = baths_min;
-    if (baths_max)           payload.baths_max            = baths_max;
-    if (building_size_min)   payload.building_size_min    = building_size_min;
-    if (building_size_max)   payload.building_size_max    = building_size_max;
-    if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
-    if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
+    const payload = { ids_only: false, obfuscate: false, summary: false };
+    if (street) payload.street = street;
+    if (city) payload.city = city;
+    if (state) payload.state = state;
+    if (zip) payload.zip = zip;
+    if (county) payload.county = county;
+    if (beds_min) payload.beds_min = beds_min;
+    if (beds_max) payload.beds_max = beds_max;
+    if (baths_min) payload.baths_min = baths_min;
+    if (baths_max) payload.baths_max = baths_max;
 
-    // Try to get property detail if street is provided
-    let propertyDetail: ApiResult | null = null;
+    let propertyDetail = null;
     if (street) {
       propertyDetail = await fetchPropertyDetail(street, city, state, zip);
-      console.log('[address-search] PropertyDetail found:', !!propertyDetail);
     }
 
-    // Fetch regular search results
-    const data = await fetchAllPages(payload, limit) as ApiResult;
+    const data = await fetchAllPages(payload, limit);
 
-    // If property detail found, add it to top of results
     if (propertyDetail && data?.data) {
-      const results = data.data as ApiResult[];
       const detailId = propertyDetail.id || propertyDetail.propertyId;
-      const isDuplicate = results.some((item: ApiResult) =>
-        (item.id && String(item.id) === String(detailId)) ||
-        (item.propertyId && String(item.propertyId) === String(detailId))
-      );
-
+      const isDuplicate = data.data.some(item => (item.id && String(item.id) === String(detailId)) || (item.propertyId && String(item.propertyId) === String(detailId)));
       if (!isDuplicate) {
-        // Add property detail at the beginning
-        results.unshift(propertyDetail);
-        // Keep within limit
-        if (results.length > limit) {
-          results.pop();
-        }
-        data.data = results;
-        data.resultCount = results.length;
-        data.recordCount = results.length;
-        console.log('[address-search] PropertyDetail added to results');
-      } else {
-        console.log('[address-search] PropertyDetail already in search results');
+        data.data.unshift(propertyDetail);
+        if (data.data.length > limit) data.data.pop();
+        data.recordCount = data.data.length;
+        data.resultCount = data.data.length;
       }
     }
 
@@ -239,84 +164,7 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   }
 });
 
-// ── 2. Polygon Search ─────────────────────────────────────────────────────────
-app.post('/webhook/realestate-polygon', async (req: Request, res: Response) => {
-  try {
-    const { polygon, limit = 50,
-      beds_min, beds_max, baths_min, baths_max,
-      building_size_min, building_size_max,
-      last_sale_price_min, last_sale_price_max } = req.body;
-
-    const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false, polygon };
-    if (beds_min)            payload.beds_min             = beds_min;
-    if (beds_max)            payload.beds_max             = beds_max;
-    if (baths_min)           payload.baths_min            = baths_min;
-    if (baths_max)           payload.baths_max            = baths_max;
-    if (building_size_min)   payload.building_size_min    = building_size_min;
-    if (building_size_max)   payload.building_size_max    = building_size_max;
-    if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
-    if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
-    const data = await fetchAllPages(payload, limit);
-    res.json(data);
-  } catch (err) {
-    console.error('[polygon-search]', err);
-    res.status(500).json({ error: 'Polygon search failed' });
-  }
-});
-
-// ── 3. Radius Search ──────────────────────────────────────────────────────────
-app.post('/webhook/radius-search', async (req: Request, res: Response) => {
-  try {
-    const { center, radiusMiles, limit = 50,
-      beds_min, beds_max, baths_min, baths_max,
-      building_size_min, building_size_max,
-      last_sale_price_min, last_sale_price_max } = req.body;
-
-    const payload: ApiResult = {
-      ids_only: false,
-      obfuscate: false,
-      summary: false,
-      latitude: String(center.lat),
-      longitude: String(center.lng),
-      radius: radiusMiles,
-    };
-    if (beds_min)            payload.beds_min             = beds_min;
-    if (beds_max)            payload.beds_max             = beds_max;
-    if (baths_min)           payload.baths_min            = baths_min;
-    if (baths_max)           payload.baths_max            = baths_max;
-    if (building_size_min)   payload.building_size_min    = building_size_min;
-    if (building_size_max)   payload.building_size_max    = building_size_max;
-    if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
-    if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
-    const data = await fetchAllPages(payload, limit);
-    res.json(data);
-  } catch (err) {
-    console.error('[radius-search]', err);
-    res.status(500).json({ error: 'Radius search failed' });
-  }
-});
-
-// ── 4. Geocode (address → lat/lng) ───────────────────────────────────────────
-app.post('/webhook/geocode', async (req: Request, res: Response) => {
-  try {
-    const { address } = req.body;
-
-    const result = await fetchPage({ ids_only: false, obfuscate: false, summary: false, address }, 0, 1);
-    const first = result.data?.[0];
-
-    if (!first) {
-      res.status(404).json({ error: 'Address not found' });
-      return;
-    }
-
-    res.json({ lat: first.latitude, lng: first.longitude });
-  } catch (err) {
-    console.error('[geocode]', err);
-    res.status(500).json({ error: 'Geocode failed' });
-  }
-});
-
-// ── Catch-all: serve frontend ─────────────────────────────────────────────────
+// ── Catch-all: serve frontend ────────────────────────
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
