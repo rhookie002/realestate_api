@@ -58,20 +58,21 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
   const allRecords: ApiResult[] = [];
   let resultIndex = 0;
   let totalAvailable = Infinity;
-  let firstResponse: ApiResult | null = null;
+  // Initialize with empty structure
+  let firstResponse: ApiResult = { data: [], resultCount: 0, recordCount: 0 };
 
   while (allRecords.length < limit && resultIndex < totalAvailable) {
     const remaining = limit - allRecords.length;
     const pageSize = Math.min(remaining, API_PAGE_SIZE);
 
     const page = await fetchPage(basePayload, resultIndex, pageSize);
+    const records: ApiResult[] = page.data ?? [];
 
-    if (!firstResponse) {
+    if (!firstResponse.data?.length) {
       firstResponse = page;
       totalAvailable = page.resultCount ?? 0;
     }
 
-    const records: ApiResult[] = page.data ?? [];
     if (records.length === 0) break;
 
     allRecords.push(...records);
@@ -83,7 +84,7 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
   return {
     ...firstResponse,
     data: allRecords,
-    resultCount: firstResponse?.resultCount ?? allRecords.length,
+    resultCount: firstResponse.resultCount ?? allRecords.length,
     recordCount: allRecords.length,
   };
 }
