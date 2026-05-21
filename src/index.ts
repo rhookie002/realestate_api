@@ -87,36 +87,6 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
 }
 
 // ── 1. Address Search ─────────────────────────────────────────────────────────
-// app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
-//   try {
-//     const { city, state, zip, street, county, limit = 50,
-//       beds_min, beds_max, baths_min, baths_max,
-//       building_size_min, building_size_max,
-//       last_sale_price_min, last_sale_price_max } = req.body;
-
-//     const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false };
-//     if (street)              payload.street               = street;
-//     if (city)                payload.city                 = city;
-//     if (state)               payload.state                = state;
-//     if (zip)                 payload.zip                  = zip;
-//     if (county)              payload.county               = county;
-//     if (beds_min)            payload.beds_min             = beds_min;
-//     if (beds_max)            payload.beds_max             = beds_max;
-//     if (baths_min)           payload.baths_min            = baths_min;
-//     if (baths_max)           payload.baths_max            = baths_max;
-//     if (building_size_min)   payload.building_size_min    = building_size_min;
-//     if (building_size_max)   payload.building_size_max    = building_size_max;
-//     if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
-//     if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
-
-//     const data = await fetchAllPages(payload, limit);
-//     res.json(data);
-//   } catch (err) {
-//     console.error('[address-search]', err);
-//     res.status(500).json({ error: 'Address search failed' });
-//   }
-// });
-// ── 1. Address Search ─────────────────────────────────────────────────────────
 app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   try {
     const { city, state, zip, street, county, limit = 50,
@@ -139,68 +109,14 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
     if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
 
-    // First, try to get the property detail if we have a street address
-    let propertyDetail: ApiResult | null = null;
-    if (street) {
-      try {
-        const addressStr = [street, city, state, zip].filter(v => v).join(', ');
-        const detailRes = await fetch('https://api.realestateapi.com/v2/PropertyDetail', {
-          method: 'POST',
-          headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-            'x-api-key': REALESTATE_API_KEY,
-            'x-user-id': 'UniqueUserIdentifier',
-          },
-          body: JSON.stringify({ 
-            address: addressStr,
-            ids_only: false, 
-            obfuscate: false, 
-            summary: false 
-          }),
-        });
-        const detailData = await detailRes.json();
-        propertyDetail = detailData?.data?.[0] || null;
-        console.log('[address-search] PropertyDetail found:', !!propertyDetail);
-      } catch (detailErr) {
-        console.error('[address-search] PropertyDetail fetch failed:', detailErr);
-      }
-    }
-
-    // Now fetch the regular property search results
-    const data: ApiResult = await fetchAllPages(payload, limit);
-    
-    // If we found a property detail, add it to the top of results
-    if (propertyDetail) {
-      const results: ApiResult[] = Array.isArray(data.data) ? [...data.data] : [];
-      
-      // Check if this property is already in the search results
-      const detailId = propertyDetail.id || propertyDetail.propertyId;
-      const isDuplicate = results.some((item: ApiResult) => 
-        item.id === detailId || item.propertyId === detailId
-      );
-      
-      if (!isDuplicate) {
-        // Add property detail at the beginning
-        results.unshift(propertyDetail);
-        // Keep within limit
-        if (results.length > limit) {
-          results.pop();
-        }
-      }
-      
-      // Update the response data
-      data.data = results;
-      data.resultCount = results.length;
-      data.recordCount = results.length;
-    }
-    
+    const data = await fetchAllPages(payload, limit);
     res.json(data);
   } catch (err) {
     console.error('[address-search]', err);
     res.status(500).json({ error: 'Address search failed' });
   }
 });
+
 
 // app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
 //   try {
