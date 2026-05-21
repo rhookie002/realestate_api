@@ -197,25 +197,27 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     }
 
     // Fetch regular search results
-    const data: any = await fetchAllPages(payload, limit);
+    const data = await fetchAllPages(payload, limit) as ApiResult;
     
     // If property detail found, add it to top of results
     if (propertyDetail && data?.data) {
+      const results = data.data as ApiResult[];
       const detailId = propertyDetail.id || propertyDetail.propertyId;
-      const isDuplicate = data.data.some((item: any) => 
+      const isDuplicate = results.some((item: ApiResult) => 
         (item.id && String(item.id) === String(detailId)) || 
         (item.propertyId && String(item.propertyId) === String(detailId))
       );
       
       if (!isDuplicate) {
         // Add property detail at the beginning
-        data.data.unshift(propertyDetail);
+        results.unshift(propertyDetail);
         // Keep within limit
-        if (data.data.length > limit) {
-          data.data.pop();
+        if (results.length > limit) {
+          results.pop();
         }
-        data.resultCount = data.data.length;
-        data.recordCount = data.data.length;
+        data.data = results;
+        data.resultCount = results.length;
+        data.recordCount = results.length;
         console.log('[address-search] PropertyDetail added to results');
       } else {
         console.log('[address-search] PropertyDetail already in search results');
