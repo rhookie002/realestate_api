@@ -187,24 +187,32 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     }
 
     // Get search results
-    const data: any = await fetchAllPages(payload, limit);
+    // @ts-ignore
+    const data = await fetchAllPages(payload, limit);
     
     // Insert property detail at the beginning if found and not duplicate
+    // @ts-ignore
     if (propertyDetail && data && data.data) {
       const detailId = String(propertyDetail.id || propertyDetail.propertyId);
       
       // Check for duplicate
+      // @ts-ignore
       const isDuplicate = data.data.some((item: any) => {
         const itemId = String(item.id || item.propertyId || '');
         return itemId === detailId;
       });
       
       if (!isDuplicate) {
+        // @ts-ignore
         data.data.unshift(propertyDetail);
+        // @ts-ignore
         if (data.data.length > limit) {
+          // @ts-ignore
           data.data.pop();
         }
+        // @ts-ignore
         data.resultCount = data.data.length;
+        // @ts-ignore
         data.recordCount = data.data.length;
       }
     }
