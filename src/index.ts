@@ -32,7 +32,8 @@ app.get("/config.js", (_req, res) => {
   `);
 });
 // ── Single page fetch ─────────────────────────────────────────────────────────
-async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: number): Promise<ApiResult> {
+// ── Single page fetch ─────────────────────────────────────────────────────────
+async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: number): Promise<any> {
   const res = await fetch(REALESTATE_BASE_URL, {
     method: 'POST',
     headers: {
@@ -43,16 +44,16 @@ async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: numb
     },
     body: JSON.stringify({ ...payload, size: pageSize, resultIndex }),
   });
-  return res.json() as Promise<ApiResult>;
+  return res.json();
 }
 
 // ── Paginated fetch — pulls all records up to `limit` ────────────────────────
 // The API caps each response at 250 records. This function loops through
 // pages using resultIndex until we have `limit` records or exhaust results.
-async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<ApiResult> {
+async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<any> {
   const allRecords: ApiResult[] = [];
   let resultIndex = 0;
-  let totalAvailable = Infinity; // will be set after first response
+  let totalAvailable = Infinity;
   let firstResponse: ApiResult | null = null;
 
   while (allRecords.length < limit && resultIndex < totalAvailable) {
@@ -63,21 +64,18 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
 
     if (!firstResponse) {
       firstResponse = page;
-      // resultCount is the total matching records in the API
       totalAvailable = page.resultCount ?? 0;
     }
 
     const records: ApiResult[] = page.data ?? [];
-    if (records.length === 0) break; // no more records
+    if (records.length === 0) break;
 
     allRecords.push(...records);
     resultIndex += records.length;
 
-    // Stop if this page returned fewer than requested (last page)
     if (records.length < pageSize) break;
   }
 
-  // Return in the same shape as a single API response
   return {
     ...firstResponse,
     data: allRecords,
