@@ -168,11 +168,11 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     }
 
     // Now fetch the regular property search results
-    const data = await fetchAllPages(payload, limit);
+    const data: ApiResult = await fetchAllPages(payload, limit);
     
     // If we found a property detail, add it to the top of results
     if (propertyDetail) {
-      const results = data.data || [];
+      const results: ApiResult[] = Array.isArray(data.data) ? [...data.data] : [];
       
       // Check if this property is already in the search results
       const detailId = propertyDetail.id || propertyDetail.propertyId;
