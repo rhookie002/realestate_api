@@ -50,7 +50,8 @@ async function fetchPage(payload: ApiResult, resultIndex: number, pageSize: numb
     body: JSON.stringify({ ...payload, size: pageSize, resultIndex }),
   });
 
-  return res.json() as Promise<ApiResult>;
+  const json: ApiResult = await res.json();
+  return json;
 }
 
 // ── Paginated fetch — pulls all records up to `limit` ────────────────────────
@@ -93,7 +94,7 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
 async function fetchPropertyDetail(street: string, city?: string, state?: string, zip?: string): Promise<ApiResult | null> {
   try {
     const addressStr = [street, city, state, zip].filter(v => v).join(', ');
-    
+
     const res = await fetch('https://api.realestateapi.com/v2/PropertyDetail', {
       method: 'POST',
       headers: {
@@ -102,19 +103,19 @@ async function fetchPropertyDetail(street: string, city?: string, state?: string
         'x-api-key': REALESTATE_API_KEY,
         'x-user-id': 'UniqueUserIdentifier',
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         address: addressStr,
-        ids_only: false, 
-        obfuscate: false, 
-        summary: false 
+        ids_only: false,
+        obfuscate: false,
+        summary: false
       }),
     });
-    
-    const response = await res.json();
+
+    const response: ApiResult = await res.json();
     const detail = response?.data;
-    
+
     if (!detail) return null;
-    
+
     // Map PropertyDetail format to match PropertySearch format
     return {
       id: detail.id,
@@ -205,16 +206,16 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
 
     // Fetch regular search results
     const data = await fetchAllPages(payload, limit) as ApiResult;
-    
+
     // If property detail found, add it to top of results
     if (propertyDetail && data?.data) {
       const results = data.data as ApiResult[];
       const detailId = propertyDetail.id || propertyDetail.propertyId;
-      const isDuplicate = results.some((item: ApiResult) => 
-        (item.id && String(item.id) === String(detailId)) || 
+      const isDuplicate = results.some((item: ApiResult) =>
+        (item.id && String(item.id) === String(detailId)) ||
         (item.propertyId && String(item.propertyId) === String(detailId))
       );
-      
+
       if (!isDuplicate) {
         // Add property detail at the beginning
         results.unshift(propertyDetail);
@@ -230,7 +231,7 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
         console.log('[address-search] PropertyDetail already in search results');
       }
     }
-    
+
     res.json(data);
   } catch (err) {
     console.error('[address-search]', err);
