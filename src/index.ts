@@ -12,7 +12,12 @@ const apiKey = process.env.GOOGLE_MAPS_API_KEY as string;
 const API_PAGE_SIZE = 250;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ApiResult = Record<string, any>;
+interface ApiResult {
+  data?: Record<string, any>[];      // The list of property records
+  resultCount?: number;              // Total results reported by API
+  recordCount?: number;              // Count of items in `data`
+  [key: string]: any;                // Anything else the API might return
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
