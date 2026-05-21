@@ -1041,6 +1041,21 @@
     
         // 🔥 Trigger map zoom (next section)
         zoomToPlace(place);
+
+        // Small delay ensures fields are fully populated and map is ready
+        setTimeout(() => {
+            // Check if we're in address search mode
+            if (searchTypeSelect.value === 'address') {
+                executeSearch();
+            } else {
+                // If not in address mode, show a helpful message or auto-switch
+                console.log('Auto-search only works in Address Search mode');
+                // Optional: Auto-switch to address mode and then search
+                searchTypeSelect.value = 'address';
+                updateUIVisibility();
+                setTimeout(() => executeSearch(), 100);
+            }
+        }, 300);
     }
     function zoomToPlace(place) {
         if (!place.geometry || !place.geometry.location) return;
