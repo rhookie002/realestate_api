@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY as string;
 const REALESTATE_BASE_URL = 'https://api.realestateapi.com/v2/PropertySearch';
 const apiKey = process.env.GOOGLE_MAPS_API_KEY as string;
-const N8N_WEBHOOK_URL = process.env.N8N_PROPERTY_DETAIL_WEBHOOK || '';
+const N8N_WEBHOOK_URL = "https://primary-production-c7e64.up.railway.app/webhook/b24995d7-7cc8-4138-a0a8-ea2a63219e39" || '';
 
 // Max records the API will return per single request
 const API_PAGE_SIZE = 250;
@@ -107,7 +107,7 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
 
     // Get property detail from n8n if street is provided
-    let propertyDetail = null;
+    let propertyDetail: any = null;
     if (street && N8N_WEBHOOK_URL) {
       try {
         const n8nResponse = await fetch(N8N_WEBHOOK_URL, {
