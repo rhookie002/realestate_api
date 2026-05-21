@@ -85,7 +85,80 @@ async function fetchAllPages(basePayload: ApiResult, limit: number): Promise<Api
     recordCount: allRecords.length,
   };
 }
-
+// ── Fetch Property Detail by Address ──────────────────────────────────────────
+async function getPropertyDetail(street: string, city?: string, state?: string, zip?: string): Promise<any> {
+  try {
+    const addressStr = [street, city, state, zip].filter(v => v).join(', ');
+    
+    const res = await fetch('https://api.realestateapi.com/v2/PropertyDetail', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-api-key': REALESTATE_API_KEY,
+        'x-user-id': 'UniqueUserIdentifier',
+      },
+      body: JSON.stringify({ 
+        address: addressStr,
+        ids_only: false, 
+        obfuscate: false, 
+        summary: false 
+      }),
+    });
+    
+    const response = await res.json();
+    const detail = response?.data;
+    
+    if (!detail) return null;
+    
+    // Format to match PropertySearch item structure
+    return {
+      id: detail.id,
+      propertyId: String(detail.id),
+      apn: detail.lotInfo?.apn || '',
+      address: {
+        full_address: detail.propertyInfo?.address?.label || addressStr,
+        address: detail.propertyInfo?.address?.address || '',
+        city: detail.propertyInfo?.address?.city || '',
+        state: detail.propertyInfo?.address?.state || '',
+        zip: detail.propertyInfo?.address?.zip || '',
+        county: detail.propertyInfo?.address?.county || '',
+        street: detail.propertyInfo?.address?.address || '',
+      },
+      latitude: detail.propertyInfo?.latitude || 0,
+      longitude: detail.propertyInfo?.longitude || 0,
+      bedrooms: detail.propertyInfo?.bedrooms || 0,
+      bathrooms: detail.propertyInfo?.bathrooms || 0,
+      squareFeet: detail.propertyInfo?.livingSquareFeet || detail.propertyInfo?.buildingSquareFeet || 0,
+      lotSquareFeet: detail.propertyInfo?.lotSquareFeet || detail.lotInfo?.lotSquareFeet || 0,
+      yearBuilt: detail.propertyInfo?.yearBuilt || 0,
+      estimatedValue: detail.estimatedValue || 0,
+      propertyType: detail.propertyType || '',
+      propertyUse: detail.lotInfo?.propertyUse || detail.propertyInfo?.propertyUse || '',
+      landUse: detail.lotInfo?.landUse || '',
+      ownerOccupied: detail.ownerOccupied || false,
+      owner1FirstName: detail.ownerInfo?.owner1FirstName || '',
+      owner1LastName: detail.ownerInfo?.owner1LastName || '',
+      owner2FirstName: detail.ownerInfo?.owner2FirstName || '',
+      owner2LastName: detail.ownerInfo?.owner2LastName || '',
+      mailAddress: {
+        full_address: detail.ownerInfo?.mailAddress?.label || '',
+        street: detail.ownerInfo?.mailAddress?.address || '',
+        city: detail.ownerInfo?.mailAddress?.city || '',
+        state: detail.ownerInfo?.mailAddress?.state || '',
+        zip: detail.ownerInfo?.mailAddress?.zip || '',
+      },
+      lastSaleAmount: detail.lastSale?.saleAmount || 0,
+      lastSaleDate: detail.lastSale?.saleDate || '',
+      priorSaleAmount: detail.saleHistory?.[1]?.saleAmount || 0,
+      priorSaleDate: detail.saleHistory?.[1]?.saleDate || '',
+      _source: 'propertyDetail'
+    };
+  } catch (err) {
+    console.error('[getPropertyDetail] Error:', err);
+    return null;
+  }
+}
 // ── 1. Address Search ─────────────────────────────────────────────────────────
 app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
   try {
@@ -94,11 +167,12 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
       building_size_min, building_size_max,
       last_sale_price_min, last_sale_price_max } = req.body;
 
-    const payload: ApiResult = { ids_only: false, obfuscate: false, summary: false };
+    const payload: any = { ids_only: false, obfuscate: false, summary: false };
     if (street)              payload.street               = street;
     if (city)                payload.city                 = city;
     if (state)               payload.state                = state;
     if (zip)                 payload.zip                  = zip;
+    if (county)              payload.county               = county;
     if (beds_min)            payload.beds_min             = beds_min;
     if (beds_max)            payload.beds_max             = beds_max;
     if (baths_min)           payload.baths_min            = baths_min;
@@ -108,14 +182,41 @@ app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
     if (last_sale_price_min) payload.last_sale_price_min  = last_sale_price_min;
     if (last_sale_price_max) payload.last_sale_price_max  = last_sale_price_max;
 
-    const data = await fetchAllPages(payload, limit);
+    // Get property detail if street is provided
+    let propertyDetail = null;
+    if (street) {
+      propertyDetail = await getPropertyDetail(street, city, state, zip);
+    }
+
+    // Get search results
+    const data: any = await fetchAllPages(payload, limit);
+    
+    // Insert property detail at the beginning if found and not duplicate
+    if (propertyDetail && data && data.data) {
+      const detailId = String(propertyDetail.id || propertyDetail.propertyId);
+      
+      // Check for duplicate
+      const isDuplicate = data.data.some((item: any) => {
+        const itemId = String(item.id || item.propertyId || '');
+        return itemId === detailId;
+      });
+      
+      if (!isDuplicate) {
+        data.data.unshift(propertyDetail);
+        if (data.data.length > limit) {
+          data.data.pop();
+        }
+        data.resultCount = data.data.length;
+        data.recordCount = data.data.length;
+      }
+    }
+    
     res.json(data);
   } catch (err) {
     console.error('[address-search]', err);
     res.status(500).json({ error: 'Address search failed' });
   }
 });
-
 
 // app.post('/webhook/realestate-address', async (req: Request, res: Response) => {
 //   try {
