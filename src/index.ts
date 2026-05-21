@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 const REALESTATE_API_KEY = process.env.REALESTATE_API_KEY as string;
 const REALESTATE_BASE_URL = 'https://api.realestateapi.com/v2/PropertySearch';
 const apiKey = process.env.GOOGLE_MAPS_API_KEY as string;
-const N8N_WEBHOOK_URL = "https://primary-production-c7e64.up.railway.app/webhook/b24995d7-7cc8-4138-a0a8-ea2a63219e39" || '';
+const N8N_WEBHOOK_URL = "https://primary-production-c7e64.up.railway.app/webhook/b24995d7-7cc8-4138-a0a8-ea2a63219e39";
 
 // Max records the API will return per single request
 const API_PAGE_SIZE = 250;
